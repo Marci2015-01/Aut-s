@@ -2,59 +2,53 @@
 <html lang="hu">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FH5 Mobile - Optimized</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Forza Mobile Ultra</title>
     <style>
+        * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
-            overflow: hidden; background: #87CEEB; touch-action: none; 
+            overflow: hidden; background: #87CEEB; position: fixed;
         }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        canvas { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; }
         
-        /* Sebességmérő - Kicsit kisebb, hogy ne zavarjon */
-        #speed-ui {
-            position: absolute; top: 10px; right: 10px;
-            background: rgba(255,255,255,0.8); border-radius: 40px;
-            padding: 10px 15px; border: 2px solid #ff0055;
-            text-align: center; pointer-events: none;
+        /* Sebességmérő */
+        #hud {
+            position: absolute; top: env(safe-area-inset-top, 10px); 
+            right: env(safe-area-inset-right, 10px);
+            background: rgba(255,255,255,0.9); border-radius: 15px;
+            padding: 8px 15px; border: 2px solid #ff0055;
+            font-family: sans-serif; text-align: center; pointer-events: none;
         }
-        #kmh { font-size: 24px; font-weight: 900; color: #ff0055; font-family: sans-serif; }
 
-        /* Irányítás - Fixen a sarkokban */
-        .ctrl-area {
-            position: absolute; bottom: 5vh; width: 100%;
-            display: flex; justify-content: space-between;
-            padding: 0 5vw; box-sizing: border-box;
-            pointer-events: none;
-        }
-        .btn-box { display: flex; gap: 15px; pointer-events: auto; }
+        /* Irányítás - Elkülönített oldalsó zónák */
         .btn { 
-            width: 70px; height: 70px; background: rgba(0,0,0,0.4); 
-            border: 3px solid white; border-radius: 50%; 
-            display: flex; align-items: center; justify-content: center;
-            font-size: 30px; color: white; user-select: none;
-            touch-action: none; -webkit-tap-highlight-color: transparent;
+            position: absolute; width: 80px; height: 80px; 
+            background: rgba(0,0,0,0.5); border: 3px solid #fff; 
+            border-radius: 50%; display: flex; align-items: center; 
+            justify-content: center; color: white; font-size: 30px; 
+            touch-action: none; pointer-events: auto;
         }
-        .btn.active { background: #ff0055; transform: scale(0.9); }
+        .btn.active { background: #ff0055; transform: scale(1.1); }
+
+        /* Pozíciók */
+        #l { bottom: 40px; left: 30px; }
+        #r { bottom: 40px; left: 130px; }
+        #b { bottom: 40px; right: 130px; }
+        #g { bottom: 40px; right: 30px; }
     </style>
 </head>
 <body>
 
-    <div id="speed-ui">
-        <div id="kmh">0</div>
-        <div style="font-size:8px; font-weight:bold; color:#555;">KM/H</div>
+    <div id="hud">
+        <div id="kmh" style="font-size: 28px; font-weight: 900; color: #ff0055;">0</div>
+        <div style="font-size: 10px; font-weight: bold;">KM/H</div>
     </div>
 
-    <div class="ctrl-area">
-        <div class="btn-box">
-            <div class="btn" id="l">◀</div>
-            <div class="btn" id="r">▶</div>
-        </div>
-        <div class="btn-box">
-            <div class="btn" id="b">B</div>
-            <div class="btn" id="g">G</div>
-        </div>
-    </div>
+    <div class="btn" id="l">◀</div>
+    <div class="btn" id="r">▶</div>
+    <div class="btn" id="b">B</div>
+    <div class="btn" id="g">G</div>
 
     <canvas id="c"></canvas>
 
@@ -68,7 +62,6 @@ const world = new Uint8Array(mapSize * mapSize);
 const houseColors = ["#FFB6C1", "#FFD700", "#98FB98", "#FFA07A", "#00CED1"];
 const worldColors = new Uint8Array(mapSize * mapSize);
 
-// Világ generálás
 for(let i=0; i<mapSize*mapSize; i++) {
     let tx = i % mapSize, ty = Math.floor(i / mapSize);
     if (tx % 14 === 0 || ty % 14 === 0) world[i] = 0;
@@ -78,52 +71,46 @@ for(let i=0; i<mapSize*mapSize; i++) {
 
 const input = { g: 0, b: 0, l: 0, r: 0 };
 
-function setupBtn(id, act) {
+function setup(id, act) {
     const el = document.getElementById(id);
     const start = (e) => { e.preventDefault(); input[act] = 1; el.classList.add('active'); };
     const end = (e) => { e.preventDefault(); input[act] = 0; el.classList.remove('active'); };
-    el.addEventListener('pointerdown', start);
-    el.addEventListener('pointerup', end);
-    el.addEventListener('pointerleave', end);
-    el.addEventListener('pointercancel', end);
+    el.addEventListener('touchstart', start, {passive: false});
+    el.addEventListener('touchend', end, {passive: false});
+    el.addEventListener('mousedown', start);
+    el.addEventListener('mouseup', end);
 }
 
-setupBtn('l', 'l'); setupBtn('r', 'r');
-setupBtn('b', 'b'); setupBtn('g', 'g');
+setup('l', 'l'); setup('r', 'r'); setup('b', 'b'); setup('g', 'g');
 
 function update() {
     if (input.b) {
-        if (speed > 0.01) { speed -= 0.01; noseDive += (15 - noseDive) * 0.1; }
+        if (speed > 0.01) { speed -= 0.012; noseDive += (15 - noseDive) * 0.1; }
         else { speed -= 0.005; noseDive += (-10 - noseDive) * 0.1; }
     } else { noseDive *= 0.8; }
-
-    if (input.g) speed += 0.008;
+    if (input.g) speed += 0.009;
     speed *= 0.98;
-    
     if (Math.abs(speed) > 0.005) {
         let sIn = input.r - input.l;
-        pa += sIn * 0.04 * (speed < 0 ? -1 : 1);
+        pa += sIn * 0.05 * (speed < 0 ? -1 : 1);
     }
-
     let nx = px + Math.cos(pa) * speed, ny = py + Math.sin(pa) * speed;
     if (world[Math.floor(ny) * mapSize + Math.floor(nx)] === 0) { px = nx; py = ny; }
-    else { speed = -speed * 0.3; }
+    else { speed = -speed * 0.4; }
 }
 
 function draw() {
     w = canvas.width = window.innerWidth;
     h = canvas.height = window.innerHeight;
     update();
-
     const fov = 1.0;
-    // Optimalizált render (szélesebb oszlopok mobilon a sebességért)
-    const step = w < 600 ? 6 : 4; 
+    const step = w < 800 ? 8 : 4; // Mobilon ritkább mintavételezés a laggolás ellen
     
     for(let x = 0; x < w; x += step) {
         let rayA = (pa - fov/2) + (x/w) * fov;
         let dist = 0, wallIdx = -1, vx = Math.cos(rayA), vy = Math.sin(rayA);
         while(dist < 15) {
-            dist += 0.15;
+            dist += 0.2;
             let tx = px + vx * dist, ty = py + vy * dist;
             if(world[Math.floor(ty) * mapSize + Math.floor(tx)] === 1) { 
                 wallIdx = Math.floor(ty) * mapSize + Math.floor(tx); break; 
@@ -137,16 +124,9 @@ function draw() {
             ctx.fillRect(x, h/2 - wallH/2 + noseDive, step, wallH);
         }
     }
-    document.getElementById("kmh").innerText = Math.floor(Math.abs(speed) * 400);
+    document.getElementById("kmh").innerText = Math.floor(Math.abs(speed) * 450);
     requestAnimationFrame(draw);
 }
-
-// Ablakméret változás kezelése
-window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-});
-
 draw();
 </script>
 </body>
