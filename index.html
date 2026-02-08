@@ -3,52 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Forza Mobile Ultra</title>
+    <title>Forza Mobile - Ultra Stable</title>
     <style>
-        * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+        * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; outline: none; }
         body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            overflow: hidden; background: #87CEEB; position: fixed;
+            margin: 0; padding: 0; width: 100vw; height: 100vh; 
+            overflow: hidden; background: #87CEEB; position: fixed; 
+            font-family: sans-serif;
         }
-        canvas { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; }
-        
-        /* Sebességmérő */
-        #hud {
-            position: absolute; top: env(safe-area-inset-top, 10px); 
-            right: env(safe-area-inset-right, 10px);
-            background: rgba(255,255,255,0.9); border-radius: 15px;
-            padding: 8px 15px; border: 2px solid #ff0055;
-            font-family: sans-serif; text-align: center; pointer-events: none;
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* Sebességmérő - Középen lent, hogy ne zavarja a sarkokat */
+        #speed-hud {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); color: #ff0055; padding: 10px 20px;
+            border-radius: 30px; border: 2px solid #ff0055; text-align: center; pointer-events: none;
         }
 
-        /* Irányítás - Elkülönített oldalsó zónák */
-        .btn { 
-            position: absolute; width: 80px; height: 80px; 
-            background: rgba(0,0,0,0.5); border: 3px solid #fff; 
-            border-radius: 50%; display: flex; align-items: center; 
-            justify-content: center; color: white; font-size: 30px; 
-            touch-action: none; pointer-events: auto;
+        /* Gombok - Két szélre elosztva */
+        .btn {
+            position: absolute; width: 85px; height: 85px;
+            background: rgba(255,255,255,0.2); border: 3px solid #fff;
+            border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; color: white; font-size: 35px;
+            touch-action: none; z-index: 100;
         }
-        .btn.active { background: #ff0055; transform: scale(1.1); }
+        .btn.active { background: #ff0055; border-color: #ff0055; transform: scale(1.1); }
 
-        /* Pozíciók */
-        #l { bottom: 40px; left: 30px; }
-        #r { bottom: 40px; left: 130px; }
-        #b { bottom: 40px; right: 130px; }
-        #g { bottom: 40px; right: 30px; }
+        /* Pozíciók: BAL OLDAL (Kormány) | JOBB OLDAL (Gáz/Fék) */
+        #l { bottom: 120px; left: 20px; }
+        #r { bottom: 20px; left: 20px; }
+        #g { bottom: 120px; right: 20px; }
+        #b { bottom: 20px; right: 20px; }
     </style>
 </head>
 <body>
 
-    <div id="hud">
-        <div id="kmh" style="font-size: 28px; font-weight: 900; color: #ff0055;">0</div>
-        <div style="font-size: 10px; font-weight: bold;">KM/H</div>
+    <div id="speed-hud">
+        <span id="kmh" style="font-size: 32px; font-weight: 900;">0</span>
+        <span style="font-size: 12px; color: white; margin-left: 5px;">KM/H</span>
     </div>
 
+    <!-- BAL kéz: Kormányzás -->
     <div class="btn" id="l">◀</div>
     <div class="btn" id="r">▶</div>
-    <div class="btn" id="b">B</div>
-    <div class="btn" id="g">G</div>
+
+    <!-- JOBB kéz: Gáz / Fék -->
+    <div class="btn" id="g">↑</div>
+    <div class="btn" id="b">↓</div>
 
     <canvas id="c"></canvas>
 
@@ -62,6 +64,7 @@ const world = new Uint8Array(mapSize * mapSize);
 const houseColors = ["#FFB6C1", "#FFD700", "#98FB98", "#FFA07A", "#00CED1"];
 const worldColors = new Uint8Array(mapSize * mapSize);
 
+// Világ építése
 for(let i=0; i<mapSize*mapSize; i++) {
     let tx = i % mapSize, ty = Math.floor(i / mapSize);
     if (tx % 14 === 0 || ty % 14 === 0) world[i] = 0;
@@ -71,7 +74,7 @@ for(let i=0; i<mapSize*mapSize; i++) {
 
 const input = { g: 0, b: 0, l: 0, r: 0 };
 
-function setup(id, act) {
+function bind(id, act) {
     const el = document.getElementById(id);
     const start = (e) => { e.preventDefault(); input[act] = 1; el.classList.add('active'); };
     const end = (e) => { e.preventDefault(); input[act] = 0; el.classList.remove('active'); };
@@ -81,7 +84,7 @@ function setup(id, act) {
     el.addEventListener('mouseup', end);
 }
 
-setup('l', 'l'); setup('r', 'r'); setup('b', 'b'); setup('g', 'g');
+bind('l', 'l'); bind('r', 'r'); bind('b', 'b'); bind('g', 'g');
 
 function update() {
     if (input.b) {
@@ -90,6 +93,7 @@ function update() {
     } else { noseDive *= 0.8; }
     if (input.g) speed += 0.009;
     speed *= 0.98;
+
     if (Math.abs(speed) > 0.005) {
         let sIn = input.r - input.l;
         pa += sIn * 0.05 * (speed < 0 ? -1 : 1);
@@ -104,12 +108,12 @@ function draw() {
     h = canvas.height = window.innerHeight;
     update();
     const fov = 1.0;
-    const step = w < 800 ? 8 : 4; // Mobilon ritkább mintavételezés a laggolás ellen
+    const step = w < 600 ? 10 : 5; // Még erősebb optimalizáció mobilon
     
     for(let x = 0; x < w; x += step) {
         let rayA = (pa - fov/2) + (x/w) * fov;
         let dist = 0, wallIdx = -1, vx = Math.cos(rayA), vy = Math.sin(rayA);
-        while(dist < 15) {
+        while(dist < 14) {
             dist += 0.2;
             let tx = px + vx * dist, ty = py + vy * dist;
             if(world[Math.floor(ty) * mapSize + Math.floor(tx)] === 1) { 
@@ -127,6 +131,10 @@ function draw() {
     document.getElementById("kmh").innerText = Math.floor(Math.abs(speed) * 450);
     requestAnimationFrame(draw);
 }
+
+// Görgetés gátlása (Safety first)
+document.addEventListener('touchmove', e => e.preventDefault(), {passive: false});
+
 draw();
 </script>
 </body>
