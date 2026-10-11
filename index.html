@@ -2,132 +2,547 @@
 <html lang="hu">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Forza Mobile Ultra</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minecraft Kocka Futam</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
     <style>
-        * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            overflow: hidden; background: #87CEEB; position: fixed;
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #87CEEB;
+            font-family: 'Inter', sans-serif;
+            touch-action: none; 
+            user-select: none;
         }
-        canvas { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; }
-        
-        /* Sebességmérő */
-        #hud {
-            position: absolute; top: env(safe-area-inset-top, 10px); 
-            right: env(safe-area-inset-right, 10px);
-            background: rgba(255,255,255,0.9); border-radius: 15px;
-            padding: 8px 15px; border: 2px solid #ff0055;
-            font-family: sans-serif; text-align: center; pointer-events: none;
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
         }
-
-        /* Irányítás - Elkülönített oldalsó zónák */
-        .btn { 
-            position: absolute; width: 80px; height: 80px; 
-            background: rgba(0,0,0,0.5); border: 3px solid #fff; 
-            border-radius: 50%; display: flex; align-items: center; 
-            justify-content: center; color: white; font-size: 30px; 
-            touch-action: none; pointer-events: auto;
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
         }
-        .btn.active { background: #ff0055; transform: scale(1.1); }
-
-        /* Pozíciók */
-        #l { bottom: 40px; left: 30px; }
-        #r { bottom: 40px; left: 130px; }
-        #b { bottom: 40px; right: 130px; }
-        #g { bottom: 40px; right: 30px; }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ffffff;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 #000;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .mc-btn {
+            background-color: #727272;
+            border: 2px solid #000;
+            border-top-color: #9E9E9E;
+            border-left-color: #9E9E9E;
+            border-bottom-color: #383838;
+            border-right-color: #383838;
+            color: white;
+            text-shadow: 2px 2px 0 #383838;
+            padding: 12px 24px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .mc-btn:active {
+            border-top-color: #383838;
+            border-left-color: #383838;
+            border-bottom-color: #9E9E9E;
+            border-right-color: #9E9E9E;
+        }
+        .mc-title {
+            font-size: 4rem;
+            color: #ffffff;
+            text-shadow: 4px 4px 0 #383838;
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+        }
+        #flash-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 15;
+            opacity: 0;
+            transition: opacity 1s ease-out;
+        }
+        .flash-active {
+            opacity: 0.9 !important;
+            transition: none !important;
+        }
     </style>
 </head>
 <body>
 
-    <div id="hud">
-        <div id="kmh" style="font-size: 28px; font-weight: 900; color: #ff0055;">0</div>
-        <div style="font-size: 10px; font-weight: bold;">KM/H</div>
+    <div id="game-container">
+        <!-- Flash Effect -->
+        <div id="flash-overlay"></div>
+
+        <div id="score-display" class="hud hidden">
+            <div>Pontszám: <span id="score-val" class="text-yellow-300">0</span></div>
+            <div class="text-xl">Legjobb: <span id="high-score-hud">0</span></div>
+            <div class="mt-4 text-2xl" id="dimension-text">Téma: Felvilág</div>
+            <div class="text-lg text-gray-300">Váltás: <span id="timer-val">15</span> mp</div>
+        </div>
+        
+        <!-- Start Menu -->
+        <div id="start-menu" class="ui-layer bg-black bg-opacity-60 backdrop-blur-sm z-20">
+            <h1 class="mc-title">Kocka Futam</h1>
+            <p class="text-white text-xl mb-8 text-shadow-md max-w-lg px-4">Bal/Jobb nyilak vagy A/D a mozgáshoz (5 sáv). Kerüld el a blokkokat!</p>
+            <p class="text-yellow-300 text-2xl mb-6 font-bold text-shadow-md">Legjobb eredmény: <span id="high-score-start">0</span></p>
+            <button id="start-btn" class="interactive mc-btn hover:scale-105 transition-transform">Indítás</button>
+        </div>
+
+        <!-- Game Over Menu -->
+        <div id="game-over-menu" class="ui-layer bg-red-900 bg-opacity-80 backdrop-blur-md z-20 hidden">
+            <h1 class="mc-title text-red-500">MEGHALTÁL!</h1>
+            <p class="text-white text-3xl mb-4 text-shadow-md">Végső Pontszám: <span id="final-score-val" class="text-yellow-300 font-bold">0</span></p>
+            <p class="text-yellow-300 text-2xl mb-8 font-bold text-shadow-md">Legjobb eredmény: <span id="high-score-end">0</span></p>
+            <button id="restart-btn" class="interactive mc-btn hover:scale-105 transition-transform">Újraéledés</button>
+        </div>
     </div>
 
-    <div class="btn" id="l">◀</div>
-    <div class="btn" id="r">▶</div>
-    <div class="btn" id="b">B</div>
-    <div class="btn" id="g">G</div>
+    <script>
+        // --- IMPROVED TEXTURE GENERATOR ---
+        function createPixelTexture(size, drawFunction) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Fill with drawing function
+            drawFunction(ctx, size);
 
-    <canvas id="c"></canvas>
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.NearestFilter; 
+            texture.minFilter = THREE.NearestFilter;
+            return texture;
+        }
 
-<script>
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
+        // Helper for random noise in range
+        function r(min, max) { return Math.floor(Math.random() * (max - min + 1) + min); }
+        function rCol(base, vary) { return base + r(-vary, vary); }
 
-let w, h, px = 14.5, py = 14.5, pa = 0, speed = 0, noseDive = 0;
-const mapSize = 64;
-const world = new Uint8Array(mapSize * mapSize);
-const houseColors = ["#FFB6C1", "#FFD700", "#98FB98", "#FFA07A", "#00CED1"];
-const worldColors = new Uint8Array(mapSize * mapSize);
+        const TexDraw = {
+            diamond: (ctx, size) => {
+                ctx.fillStyle = '#4AEDD9'; ctx.fillRect(0,0,size,size);
+                ctx.fillStyle = '#22B4A6'; ctx.fillRect(2,2,size-4,size-4);
+                ctx.fillStyle = '#89F6E8'; ctx.fillRect(0,0,size,2); ctx.fillRect(0,0,2,size);
+            },
+            dirt: (ctx, size) => {
+                for(let y=0;y<size;y++){ for(let x=0;x<size;x++){
+                    ctx.fillStyle = `rgb(${rCol(120,15)},${rCol(80,10)},${rCol(45,10)})`;
+                    ctx.fillRect(x,y,1,1);
+                }}
+            },
+            grassTop: (ctx, size) => {
+                for(let y=0;y<size;y++){ for(let x=0;x<size;x++){
+                    ctx.fillStyle = `rgb(${rCol(90,15)},${rCol(160,20)},${rCol(70,10)})`;
+                    ctx.fillRect(x,y,1,1);
+                }}
+            },
+            grassSide: (ctx, size) => {
+                TexDraw.dirt(ctx, size); // Draw dirt base
+                for(let y=0;y<5;y++){ for(let x=0;x<size;x++){
+                    // Jagged grass edge
+                    if (y < 3 || Math.random() > 0.4) {
+                        ctx.fillStyle = `rgb(${rCol(90,15)},${rCol(160,20)},${rCol(70,10)})`;
+                        ctx.fillRect(x,y,1,1);
+                    }
+                }}
+            },
+            stone: (ctx, size) => {
+                for(let y=0;y<size;y++){ for(let x=0;x<size;x++){
+                    const v = rCol(125, 10);
+                    ctx.fillStyle = `rgb(${v},${v},${v})`; ctx.fillRect(x,y,1,1);
+                }}
+            },
+            cobble: (ctx, size) => {
+                TexDraw.stone(ctx, size);
+                ctx.fillStyle = '#444'; // Grout lines
+                for(let i=0;i<size;i+=4) {
+                    ctx.fillRect(0, i, size, 1);
+                    ctx.fillRect(i + (i%3)*2, i, 1, 4);
+                }
+            },
+            leaves: (ctx, size) => {
+                for(let y=0;y<size;y++){ for(let x=0;x<size;x++){
+                    if(Math.random()>0.2) ctx.fillStyle = `rgb(${rCol(40,20)},${rCol(100,20)},${rCol(30,10)})`;
+                    else ctx.fillStyle = '#111'; // "holes"
+                    ctx.fillRect(x,y,1,1);
+                }}
+            },
+            oakLog: (ctx, size) => {
+                for(let y=0;y<size;y++){ for(let x=0;x<size;x++){
+                    const base = (x%4===0 || x%5===0) ? 60 : 100; // Bark lines
+                    ctx.fillStyle = `rgb(${rCol(base,10)},${rCol(base-30,10)},${rCol(base-60,10)})`;
+                    ctx.fillRect(x,y,1,1);
+                }}
+            },
+            deepslate: (ctx, size) => {
+                for(let y=0;y<size;y++){ for(let x=0;x<size;x++){
+                    const v = (y%3===0 || y%4===0) ? rCol(40,5) : rCol(60,5);
+                    ctx.fillStyle = `rgb(${v},${v},${v})`; ctx.fillRect(x,y,1,1);
+                }}
+            },
+            netherrack: (ctx, size) => {
+                for(let y=0;y<size;y++){ for(let x=0;x<size;x++){
+                    ctx.fillStyle = `rgb(${rCol(110,25)},${rCol(40,15)},${rCol(40,15)})`;
+                    ctx.fillRect(x,y,1,1);
+                }}
+            },
+            netherite: (ctx, size) => {
+                ctx.fillStyle = '#2A2A2A'; ctx.fillRect(0,0,size,size);
+                ctx.fillStyle = '#3F3F3F'; ctx.fillRect(1,1,size-2,size-2);
+                ctx.fillStyle = '#1A1A1A'; ctx.fillRect(0,0,size,1); ctx.fillRect(0,0,1,size); // Bevel
+            },
+            endStone: (ctx, size) => {
+                for(let y=0;y<size;y++){ for(let x=0;x<size;x++){
+                    ctx.fillStyle = `rgb(${rCol(220,15)},${rCol(220,15)},${rCol(160,20)})`;
+                    ctx.fillRect(x,y,1,1);
+                }}
+            },
+            chorus: (ctx, size) => {
+                ctx.fillStyle = '#A06EB5'; ctx.fillRect(0,0,size,size);
+                ctx.fillStyle = '#834A99'; // darker outlines
+                for(let i=0;i<size;i+=4) { ctx.fillRect(i,0,1,size); ctx.fillRect(0,i,size,1); }
+                ctx.fillStyle = '#D6B4E5'; ctx.fillRect(2,2,2,2); ctx.fillRect(6,6,2,2); // white flowers
+            },
+            worldBorder: (ctx, size) => {
+                for(let y=0;y<size;y++){ for(let x=0;x<size;x++){
+                    ctx.fillStyle = (x%4===0 || (x+y)%16===0) ? 'rgba(0, 255, 255, 0.8)' : 'rgba(0, 150, 255, 0.2)';
+                    ctx.fillRect(x,y,1,1);
+                }}
+            }
+        };
 
-for(let i=0; i<mapSize*mapSize; i++) {
-    let tx = i % mapSize, ty = Math.floor(i / mapSize);
-    if (tx % 14 === 0 || ty % 14 === 0) world[i] = 0;
-    else if (Math.random() > 0.45) { world[i] = 1; worldColors[i] = Math.floor(Math.random() * 5); }
-    if(tx == 0 || tx == mapSize-1 || ty == 0 || ty == mapSize-1) world[i] = 1;
-}
+        const textures = {};
+        function initTextures() {
+            const size = 16;
+            textures.diamond = createPixelTexture(size, TexDraw.diamond);
+            textures.grassTop = createPixelTexture(size, TexDraw.grassTop);
+            textures.grassSide = createPixelTexture(size, TexDraw.grassSide);
+            textures.dirt = createPixelTexture(size, TexDraw.dirt);
+            textures.stone = createPixelTexture(size, TexDraw.stone);
+            textures.cobble = createPixelTexture(size, TexDraw.cobble);
+            textures.leaves = createPixelTexture(size, TexDraw.leaves);
+            textures.oakLog = createPixelTexture(size, TexDraw.oakLog);
+            textures.deepslate = createPixelTexture(size, TexDraw.deepslate);
+            textures.netherrack = createPixelTexture(size, TexDraw.netherrack);
+            textures.netherite = createPixelTexture(size, TexDraw.netherite);
+            textures.endStone = createPixelTexture(size, TexDraw.endStone);
+            textures.chorus = createPixelTexture(size, TexDraw.chorus);
+            
+            textures.border = createPixelTexture(64, TexDraw.worldBorder);
+            textures.border.wrapS = THREE.RepeatWrapping;
+            textures.border.wrapT = THREE.RepeatWrapping;
+            textures.border.repeat.set(1, 10);
+        }
 
-const input = { g: 0, b: 0, l: 0, r: 0 };
+        let scene, camera, renderer;
+        let player, floor, borderLeft, borderRight;
+        let obstacles = [];
+        let gameActive = false;
+        let score = 0;
+        let highScore = localStorage.getItem('mcCubeRunnerHighScore') || 0;
+        
+        let baseSpeed = 0.4;
+        let speedMultiplier = 1.0;
+        let currentSpeed = baseSpeed;
+        
+        const LANE_WIDTH = 2;
+        const MAX_LANES = 2; // -2, -1, 0, 1, 2
+        const PLAYER_Z = 5;
+        const SPAWN_Z = -80;
 
-function setup(id, act) {
-    const el = document.getElementById(id);
-    const start = (e) => { e.preventDefault(); input[act] = 1; el.classList.add('active'); };
-    const end = (e) => { e.preventDefault(); input[act] = 0; el.classList.remove('active'); };
-    el.addEventListener('touchstart', start, {passive: false});
-    el.addEventListener('touchend', end, {passive: false});
-    el.addEventListener('mousedown', start);
-    el.addEventListener('mouseup', end);
-}
+        let clock = new THREE.Clock();
+        let dimensionTimer = 15.0;
+        let currentDimensionIndex = 0; 
 
-setup('l', 'l'); setup('r', 'r'); setup('b', 'b'); setup('g', 'g');
+        const DIMENSIONS = [
+            { name: "Felvilág (Overworld)", bg: 0x87CEEB, flash: "#ffffff", floorTex: 'grassTop', 
+              blocks: ['grass', 'dirt', 'stone', 'cobble', 'leaves', 'oakLog'] },
+            { name: "Alvilág (Nether)", bg: 0x330000, flash: "#ff4444", floorTex: 'netherrack', 
+              blocks: ['deepslate', 'netherrack', 'netherite'] },
+            { name: "Vég (End)", bg: 0x0f0015, flash: "#aa00ff", floorTex: 'endStone', 
+              blocks: ['endStone', 'chorus'] }
+        ];
 
-function update() {
-    if (input.b) {
-        if (speed > 0.01) { speed -= 0.012; noseDive += (15 - noseDive) * 0.1; }
-        else { speed -= 0.005; noseDive += (-10 - noseDive) * 0.1; }
-    } else { noseDive *= 0.8; }
-    if (input.g) speed += 0.009;
-    speed *= 0.98;
-    if (Math.abs(speed) > 0.005) {
-        let sIn = input.r - input.l;
-        pa += sIn * 0.05 * (speed < 0 ? -1 : 1);
-    }
-    let nx = px + Math.cos(pa) * speed, ny = py + Math.sin(pa) * speed;
-    if (world[Math.floor(ny) * mapSize + Math.floor(nx)] === 0) { px = nx; py = ny; }
-    else { speed = -speed * 0.4; }
-}
+        function init() {
+            initTextures();
 
-function draw() {
-    w = canvas.width = window.innerWidth;
-    h = canvas.height = window.innerHeight;
-    update();
-    const fov = 1.0;
-    const step = w < 800 ? 8 : 4; // Mobilon ritkább mintavételezés a laggolás ellen
-    
-    for(let x = 0; x < w; x += step) {
-        let rayA = (pa - fov/2) + (x/w) * fov;
-        let dist = 0, wallIdx = -1, vx = Math.cos(rayA), vy = Math.sin(rayA);
-        while(dist < 15) {
-            dist += 0.2;
-            let tx = px + vx * dist, ty = py + vy * dist;
-            if(world[Math.floor(ty) * mapSize + Math.floor(tx)] === 1) { 
-                wallIdx = Math.floor(ty) * mapSize + Math.floor(tx); break; 
+            document.getElementById('high-score-start').innerText = Math.floor(highScore);
+            document.getElementById('high-score-hud').innerText = Math.floor(highScore);
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(DIMENSIONS[0].bg);
+            scene.fog = new THREE.FogExp2(DIMENSIONS[0].bg, 0.02);
+
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(0, 5, PLAYER_Z + 8);
+            camera.lookAt(0, 0, -20);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambient);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            dirLight.position.set(10, 20, 10);
+            scene.add(dirLight);
+
+            // Floor
+            const floorGeo = new THREE.PlaneGeometry(20, 300);
+            const floorMat = new THREE.MeshBasicMaterial({ map: textures[DIMENSIONS[0].floorTex] });
+            textures[DIMENSIONS[0].floorTex].wrapS = THREE.RepeatWrapping;
+            textures[DIMENSIONS[0].floorTex].wrapT = THREE.RepeatWrapping;
+            textures[DIMENSIONS[0].floorTex].repeat.set(10, 150);
+            floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            // Borders
+            const borderGeo = new THREE.PlaneGeometry(100, 300);
+            const borderMat = new THREE.MeshBasicMaterial({ 
+                map: textures.border, transparent: true, opacity: 0.8, side: THREE.DoubleSide
+            });
+            borderLeft = new THREE.Mesh(borderGeo, borderMat);
+            borderLeft.position.set(-6, 10, -50);
+            borderLeft.rotation.y = Math.PI / 2;
+            scene.add(borderLeft);
+
+            borderRight = new THREE.Mesh(borderGeo, borderMat);
+            borderRight.position.set(6, 10, -50);
+            borderRight.rotation.y = -Math.PI / 2;
+            scene.add(borderRight);
+
+            // Player Cube
+            const boxGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+            const playerMat = new THREE.MeshLambertMaterial({ map: textures.diamond });
+            player = new THREE.Mesh(boxGeo, playerMat);
+            player.position.set(0, 0.75, PLAYER_Z);
+            player.targetX = 0;
+            scene.add(player);
+
+            // Controls
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', (e) => {
+                if(!gameActive) return;
+                if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') 
+                    player.targetX = Math.max(-MAX_LANES * LANE_WIDTH, player.targetX - LANE_WIDTH);
+                if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') 
+                    player.targetX = Math.min(MAX_LANES * LANE_WIDTH, player.targetX + LANE_WIDTH);
+            });
+            document.addEventListener('touchstart', (e) => {
+                if(!gameActive) return;
+                if(e.touches[0].clientX < window.innerWidth/2) 
+                    player.targetX = Math.max(-MAX_LANES * LANE_WIDTH, player.targetX - LANE_WIDTH);
+                else 
+                    player.targetX = Math.min(MAX_LANES * LANE_WIDTH, player.targetX + LANE_WIDTH);
+            }, {passive: false});
+
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            document.getElementById('restart-btn').addEventListener('click', startGame);
+
+            animate();
+        }
+
+        function createObstacleMaterial(type) {
+            if (type === 'grass') {
+                return [
+                    new THREE.MeshLambertMaterial({map: textures.grassSide}),
+                    new THREE.MeshLambertMaterial({map: textures.grassSide}),
+                    new THREE.MeshLambertMaterial({map: textures.grassTop}),
+                    new THREE.MeshLambertMaterial({map: textures.dirt}),
+                    new THREE.MeshLambertMaterial({map: textures.grassSide}),
+                    new THREE.MeshLambertMaterial({map: textures.grassSide})
+                ];
+            }
+            return new THREE.MeshLambertMaterial({ map: textures[type] });
+        }
+
+        function spawnObstacle() {
+            const dim = DIMENSIONS[currentDimensionIndex];
+            const type = dim.blocks[Math.floor(Math.random() * dim.blocks.length)];
+            
+            const geo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+            const mat = createObstacleMaterial(type);
+            const obs = new THREE.Mesh(geo, mat);
+            
+            const lane = Math.floor(Math.random() * 5) - 2;
+            obs.position.set(lane * LANE_WIDTH, 0.75, SPAWN_Z);
+            scene.add(obs);
+            obstacles.push(obs);
+        }
+
+        function triggerFlash(color) {
+            const overlay = document.getElementById('flash-overlay');
+            overlay.style.backgroundColor = color;
+            overlay.classList.add('flash-active');
+            
+            // Force reflow
+            void overlay.offsetWidth;
+            
+            setTimeout(() => {
+                overlay.classList.remove('flash-active');
+            }, 50);
+        }
+
+        function switchDimension() {
+            currentDimensionIndex = (currentDimensionIndex + 1) % 3;
+            const dim = DIMENSIONS[currentDimensionIndex];
+            
+            // Visual Effects
+            triggerFlash(dim.flash);
+            document.getElementById('dimension-text').innerText = "Téma: " + dim.name;
+            scene.background.setHex(dim.bg);
+            scene.fog.color.setHex(dim.bg);
+            
+            // Floor Update
+            const floorTex = textures[dim.floorTex];
+            floorTex.wrapS = THREE.RepeatWrapping;
+            floorTex.wrapT = THREE.RepeatWrapping;
+            floorTex.repeat.set(10, 150);
+            floor.material.map = floorTex;
+            floor.material.needsUpdate = true;
+        }
+
+        function startGame() {
+            gameActive = true;
+            score = 0;
+            speedMultiplier = 1.0;
+            dimensionTimer = 15.0;
+            
+            // Reset to Overworld
+            currentDimensionIndex = -1;
+            switchDimension(); 
+            
+            document.getElementById('score-val').innerText = score;
+            document.getElementById('start-menu').classList.add('hidden');
+            document.getElementById('game-over-menu').classList.add('hidden');
+            document.getElementById('score-display').classList.remove('hidden');
+            
+            player.position.x = 0;
+            player.targetX = 0;
+            clock.start();
+
+            obstacles.forEach(obs => scene.remove(obs));
+            obstacles = [];
+        }
+
+        function gameOver() {
+            gameActive = false;
+            if (score > highScore) {
+                highScore = Math.floor(score);
+                localStorage.setItem('mcCubeRunnerHighScore', highScore);
+            }
+            document.getElementById('final-score-val').innerText = Math.floor(score);
+            document.getElementById('high-score-end').innerText = highScore;
+            document.getElementById('high-score-hud').innerText = highScore;
+            document.getElementById('high-score-start').innerText = highScore;
+            
+            document.getElementById('score-display').classList.add('hidden');
+            document.getElementById('game-over-menu').classList.remove('hidden');
+        }
+
+        let spawnTimer = 0;
+
+        function update() {
+            if (!gameActive) return;
+            const dt = clock.getDelta();
+
+            // Game Acceleration
+            speedMultiplier += dt * 0.02; // Increases game speed gradually over time
+            currentSpeed = baseSpeed * speedMultiplier;
+
+            // Dimension Timer
+            dimensionTimer -= dt;
+            document.getElementById('timer-val').innerText = Math.ceil(Math.max(0, dimensionTimer));
+            if (dimensionTimer <= 0) {
+                dimensionTimer = 15.0;
+                switchDimension();
+            }
+
+            // Player Smooth Movement
+            player.position.x += (player.targetX - player.position.x) * 0.2;
+            player.rotation.y = (player.position.x - player.targetX) * 0.1;
+            player.rotation.z = (player.position.x - player.targetX) * 0.1;
+
+            // Spawning Logic (Faster spawns as speed increases)
+            spawnTimer -= dt * currentSpeed * 60; 
+            if (spawnTimer <= 0) {
+                spawnObstacle();
+                // Randomize spawn delay, decreasing as multiplier goes up
+                spawnTimer = Math.max(15, 45 - (speedMultiplier * 10)); 
+            }
+
+            // Animate Backgrounds
+            textures.border.offset.y -= currentSpeed * dt * 2;
+            floor.material.map.offset.y -= currentSpeed * dt;
+
+            // Update Obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.position.z += currentSpeed * dt * 50; // Move towards player
+
+                // Collision Detection
+                if (Math.abs(obs.position.z - player.position.z) < 1.4 && 
+                    Math.abs(obs.position.x - player.position.x) < 1.4) {
+                    gameOver();
+                    return;
+                }
+
+                // Passed player successfully
+                if (obs.position.z > PLAYER_Z + 5) {
+                    scene.remove(obs);
+                    obstacles.splice(i, 1);
+                    score += 10 * speedMultiplier; // Higher score for higher speeds
+                    document.getElementById('score-val').innerText = Math.floor(score);
+                }
             }
         }
-        let wallH = h / (dist * Math.cos(rayA - pa));
-        ctx.fillStyle = "#87CEEB"; ctx.fillRect(x, 0, step, h/2 + noseDive);
-        ctx.fillStyle = "#A9A9A9"; ctx.fillRect(x, h/2 + noseDive, step, h/2 - noseDive);
-        if(wallIdx >= 0) {
-            ctx.fillStyle = houseColors[worldColors[wallIdx]];
-            ctx.fillRect(x, h/2 - wallH/2 + noseDive, step, wallH);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+            renderer.render(scene, camera);
         }
-    }
-    document.getElementById("kmh").innerText = Math.floor(Math.abs(speed) * 450);
-    requestAnimationFrame(draw);
-}
-draw();
-</script>
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.onload = init;
+    </script>
 </body>
 </html>
